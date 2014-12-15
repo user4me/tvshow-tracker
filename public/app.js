@@ -1,4 +1,4 @@
-angular.module('MyApp', ['ngResource', 'ngMessages', 'ngRoute', 'ngAnimate', 'mgcrea.ngStrap'])
+angular.module('MyApp', ['ngResource', 'ngMessages', 'ngRoute', 'ngAnimate', 'mgcrea.ngStrap', 'localization'])
   .config(function ($routeProvider, $locationProvider) {
     $locationProvider.html5Mode(true);
 
@@ -22,6 +22,10 @@ angular.module('MyApp', ['ngResource', 'ngMessages', 'ngRoute', 'ngAnimate', 'mg
       .when('/add', {
         templateUrl: 'views/add.html',
         controller: 'AddCtrl'
+      })
+      .when('/config', {
+        templateUrl: 'views/config.html',
+        controller: 'configCtrl'
       })
       .otherwise({
         redirectTo: '/'

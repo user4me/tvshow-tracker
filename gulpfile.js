@@ -18,6 +18,7 @@ gulp.task('sass', function() {
 
 gulp.task('compress', function() {
   gulp.src([
+    'public/i18n/*.json',
     'public/vendor/angular.js',
     'public/vendor/*.js',
     'public/app.js',

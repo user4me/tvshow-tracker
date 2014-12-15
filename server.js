@@ -13,6 +13,9 @@ var async = require('async');
 var request = require('request');
 var xml2js = require('xml2js');
 
+var TVDBClient = require("node-tvdb");
+var tvdb = new TVDBClient("077A95A85CE40C0B");
+
 var agenda = require('agenda')({ db: { address: 'localhost:27017/test' } });
 var sugar = require('sugar');
 var nodemailer = require('nodemailer');
@@ -36,13 +39,22 @@ var showSchema = new mongoose.Schema({
   subscribers: [{
     type: mongoose.Schema.Types.ObjectId, ref: 'User'
   }],
-  episodes: [{
-      season: Number,
-      episodeNumber: Number,
-      episodeName: String,
-      firstAired: Date,
-      overview: String
-  }]
+  seasons: [ seasonSchema ]
+});
+
+var seasonSchema = new mongoose.Schema({
+    _id : {type: Number, unique: true, required: true},
+    seasonNumber: Number,
+    episodes: [ episodeSchema ]
+});
+
+var episodeSchema = new mongoose.Schema({
+    _id : {type: Number, unique: true, required: true},
+    seasonNumber: Number,
+    episodeNumber: Number,
+    episodeName: String,
+    firstAired: Date,
+    overview: String
 });
 
 var userSchema = new mongoose.Schema({
@@ -81,6 +93,8 @@ userSchema.methods.comparePassword = function(candidatePassword, cb) {
 
 var User = mongoose.model('User', userSchema);
 var Show = mongoose.model('Show', showSchema);
+var Season = mongoose.model('Season', seasonSchema);
+var Episode = mongoose.model('Episode', episodeSchema);
 
 mongoose.connect('localhost');
 
@@ -235,12 +249,28 @@ app.get('/api/shows/:id', function(req, res, next) {
   });
 });
 
+app.get('/api/lang', function(req, res, next){
+  tvdb.getLanguages(function(error, response){
+    if (error) return next(error);
+    res.send(response);
+  });
+});
+
 app.post('/api/shows', function (req, res, next) {
+
+  // Set the language
+  var lang = req.body.lang;
+  console.log(lang);
+  if(!lang){
+    lang = 'en';
+  }
+  tvdb.setLanguage(lang);
+  
+  // Get serie name.
   var seriesName = req.body.showName
     .toLowerCase()
     .replace(/ /g, '_')
     .replace(/[^\w-]+/g, '');
-  var apiKey = '9EF1D1E7D28FDA0B';
   var parser = xml2js.Parser({
     explicitArray: false,
     normalizeTags: true
@@ -248,50 +278,59 @@ app.post('/api/shows', function (req, res, next) {
 
   async.waterfall([
     function (callback) {
-      request.get('http://thetvdb.com/api/GetSeries.php?seriesname=' + seriesName, function (error, response, body) {
+      tvdb.getSeries(seriesName, function(error, response) {
         if (error) return next(error);
-        parser.parseString(body, function (err, result) {
-          if (!result.data.series) {
-            return res.send(400, { message: req.body.showName + ' was not found.' });
-          }
-          var seriesId = result.data.series.seriesid || result.data.series[0].seriesid;
-          callback(err, seriesId);
-        });
+        if (!response || response.length == 0){
+          return res.send(400, { message: req.body.showName + ' was not found.' });
+        }
+        var seriesId = response.seriesid || response[0].seriesid;
+        callback(error, seriesId);
       });
     },
     function (seriesId, callback) {
-      request.get('http://thetvdb.com/api/' + apiKey + '/series/' + seriesId + '/all/en.xml', function (error, response, body) {
+      tvdb.getSeriesAllById(seriesId, function(error, response) {
+        console.log(response);
         if (error) return next(error);
-        parser.parseString(body, function (err, result) {
-          var series = result.data.series;
-          var episodes = result.data.episode;
-          var show = new Show({
-            _id: series.id,
-            name: series.seriesname,
-            airsDayOfWeek: series.airs_dayofweek,
-            airsTime: series.airs_time,
-            firstAired: series.firstaired,
-            genre: series.genre.split('|').filter(Boolean),
-            network: series.network,
-            overview: series.overview,
-            rating: series.rating,
-            ratingCount: series.ratingcount,
-            runtime: series.runtime,
-            status: series.status,
-            poster: series.poster,
-            episodes: []
-          });
-          _.each(episodes, function (episode) {
-            show.episodes.push({
-              season: episode.seasonnumber,
-              episodeNumber: episode.episodenumber,
-              episodeName: episode.episodename,
-              firstAired: episode.firstaired,
-              overview: episode.overview
-            });
-          });
-          callback(err, show);
+        var series = response;
+        var episodes = response.Episodes;
+        var show = new Show({
+          _id: series.id,
+          name: series.SeriesName,
+          airsDayOfWeek: series.Airs_DayOfWeek,
+          airsTime: series.Airs_Time,
+          firstAired: series.FirstAired,
+          genre: series.Genre.split('|').filter(Boolean),
+          network: series.Network,
+          overview: series.Overview,
+          rating: series.Rating,
+          ratingCount: series.RatingCount,
+          runtime: series.Runtime,
+          status: series.Status,
+          poster: series.poster,
+          seasons: []
         });
+        var seasonMap = {};
+        _.each(episodes, function (episode) {
+          var seasonId = episode.seasonid;
+          var seasonToModify = seasonMap[seasonId];
+          if(!seasonToModify) {
+            seasonToModify = new Season({
+              _id: seasonId,
+              seasonNumber: episode.SeasonNumber
+            });
+            seasonMap[seasonId] = seasonToModify;
+            show.seasons.push(seasonToModify);
+          }
+          seasonToModify.episodes.push( new Episode({
+            _id: episode.id,
+            seasonNumber: episode.SeasonNumber,
+            episodeNumber: episode.EpisodeNumber,
+            episodeName: episode.EpisodeName,
+            firstAired: episode.FirstAired,
+            overview: episode.Overview
+          }));
+        });
+        callback(error, show);
       });
     },
     function (show, callback) {
@@ -339,8 +378,12 @@ app.post('/api/unsubscribe', ensureAuthenticated, function(req, res, next) {
     });
   });
 });
-
-app.get('*', function(req, res) {
+app.get('/i18n/*.json', function(req, res) {
+  res.sendFile(req.originalUrl, {root: './public'}, function (err) {
+    res.status(404).send('Sorry, we cannot find that!');
+  });
+});
+app.get('*',  function(req, res) {
   res.redirect('/#' + req.originalUrl);
 });
 

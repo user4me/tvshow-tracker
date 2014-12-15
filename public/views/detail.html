@@ -43,21 +43,23 @@
     The next episode starts {{nextEpisode.firstAired | fromNow}}.
   </div>
 
+  <div class="season" ng-repeat="season in show.seasons">
   <div class="panel panel-default">
     <div class="panel-heading">
-      <span class="ion-film-marker"></span> Episodes
+      <span class="ion-film-marker"></span> Season {{season.seasonNumber}}
+      <span style="float:right">Select all</span>
     </div>
     <div class="panel-body">
-      <div class="episode" ng-repeat="episode in show.episodes">
-        <h4>{{episode.episodeName}}
-        <small>Season {{episode.season}}, Episode {{episode.episodeNumber}}</small>
-        </h4>
-        <p>
-          <span class="ion-clock"></span>
-          {{episode.firstAired | date: 'short'}}
-        </p>
-        <p>{{episode.overview}}</p>
-      </div>
+      <table class="table">
+      <tr class="episode" ng-repeat="episode in season.episodes">
+        <td width="50px">{{episode.episodeNumber}}</td>
+        <td width="500px">{{episode.episodeName}} </td>
+        <td>  <span class="ion-clock"></span> {{episode.firstAired | date: 'short'}} </td>
+        <td> <input style="float:right" type="checkbox"> </td>
+        <!--<p>{{episode.overview}}</p>-->
+      </tr>
+      </table>
     </div>
+  </div>
   </div>
 </div>

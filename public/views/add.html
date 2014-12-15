@@ -4,13 +4,23 @@
     <div class="panel-body">
       <form class="form" method="post" ng-submit="addShow()" name="addForm">
         <div class="form-group" ng-class="{ 'has-error' : addForm.showName.$invalid && addForm.showName.$dirty }">
-          <label class="control-label">Name</label>
-          <input class="form-control" type="text" name="showName" ng-model="showName" placeholder="Enter TV show name" required autofocus>
+          <div class="row">
+            <div class="col-xs-10">
+              <label class="control-label">Name</label>
+              <input class="form-control" type="text" name="showName" ng-model="showName" placeholder="Enter TV show name" required autofocus>
+            </div>
+            <div class="col-xs-2">
+              <label class="control-label">Language</label>
+              <p ng-show="languages.length == 0">Loading languages...</p>
+              <select class="form-control" ng-show="languages.length !== 0" ng-model="selectedLanguage" ng-options="language.abbreviation as language.name for language in languages">
+              </select>
+            </div>
+          </div>
           <div class="help-block text-danger" ng-if="addForm.showName.$dirty" ng-messages="addForm.showName.$error">
             <div ng-message="required">TV show name is required.</div>
           </div>
         </div>
-        <button class="btn btn-primary" type="submit" ng-disabled="addForm.$invalid">Add</button>
+        <button class="btn btn-primary" type="submit" ng-disabled="addForm.$invalid && languages.length !== 0">Add</button>
       </form>
     </div>
   </div>
